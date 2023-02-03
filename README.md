@@ -33,7 +33,7 @@ At the moment, only the ALOS2 data can be processed with this script.
 * ISCE > https://github.com/isce-framework/isce2
 
 # Installation
-* Download the scripts, AutoISCE, convert2int.py, downloadem, getboundingbox.py, prep_alos2xml, and add them to your PATH
+* Download the scripts, AutoISCE, convert2int.py, downloadem, getboundingbox.py, prep_alos2xml, and add them to your PATH. Make sure that they have execution permissions.
 
 # How to use the script
 

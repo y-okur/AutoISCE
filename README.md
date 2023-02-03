@@ -35,7 +35,7 @@ At the moment, only the ALOS2 data can be processed with this script.
 # Installation
 * Download the scripts, AutoISCE, convert2int.py, downloadem, getboundingbox.py, prep_alos2xml, and add them to your PATH
 
-Here are the quick instruction to process your first stack:
+Here are the quick instructions to process your first stack:
 
 * You need to place your SLC files in some folder. Each date must be in a folder with yyyymmdd format.
 An example folder structure for **SLCDIR**:

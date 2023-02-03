@@ -1,4 +1,5 @@
 # AutoISCE
+Stack processor for ISCE2
 ## Current version: 0.5
 ### Changelogs
 - version 0.5 (2023.02.02): Added support for giving external dem. Paths must be defined in parfile
@@ -14,8 +15,6 @@
                           Added downloaddem script to the workflow. Later it can be used for automatic dem download.
 - version 0.1 (2023.01.17): Initial creation
 
-
-Stack processor for ISCE2
 
 This is an automatic processing workflow to produce series of interferograms from available SLC data.
 ### Outputs

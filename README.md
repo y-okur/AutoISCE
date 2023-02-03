@@ -102,4 +102,11 @@ But you need an account from "urs.earthdata.nasa.gov". Here are the instruction 
 > https://github.com/isce-framework/isce2#notes-on-digital-elevation-models
 > https://wiki.earthdata.nasa.gov/display/EL/How+To+Access+Data+With+cURL+And+Wget
 
+* Create a main proces folder and place your parameter file inside this folder.
+
+Then run:
+```
+AutoISCE PARFILE
+```
+
 

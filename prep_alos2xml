@@ -1,0 +1,85 @@
+#! /bin/bash
+# ========================================================================================================
+#                                       Creation of alos2App.xml                                         #
+# ========================================================================================================
+source $1
+echo '<?xml version="1.0" encoding="UTF-8"?>' > $processdir/alos2App.xml
+echo '<alos2App>' >> $processdir/alos2App.xml
+echo '  <component name="alos2insar">' >> $processdir/alos2App.xml
+# ========================================================================================================
+# Note that, in ScanSAR-stripmap interferometry, ScanSAR must be reference! see section 
+# 2. SET PARAMETERS in 'alos2_tutorial.txt' to determine if you are doing ScanSAR-stripmap 
+# interferometry
+echo '    <property name="reference directory">'${referencedir}'</property>' >> $processdir/alos2App.xml
+echo '    <property name="secondary directory">'${secondarydir}'</property>' >> $processdir/alos2App.xml
+# ========================================================================================================
+# Normally no need to set frame numbers, but if reference and secondary frames do not meet the following 
+# one-to-one correspondence, you need to set frame numbers here. See instructions below on how to find 
+# and set frame numbers. YO: I don't know it affects the process. Leave it in comment for now
+# echo '    <!--property name="reference frames">'${reference_frame}'</property-->' >> alos2App.xml
+# echo '    <!--property name="secondary frames">'${secondary_frame}'</property-->' >> alos2App.xml
+# =======================================================================================================
+# These are the numbers of looks to be taken when forming the interferogram
+echo '    <property name="number of range looks 1">'${num_rng_lk1}'</property>' >> $processdir/alos2App.xml
+echo '    <property name="number of azimuth looks 1">'${num_azi_lk1}'</property>' >> $processdir/alos2App.xml
+# ========================================================================================================
+# These are the numbers of looks to be taken after taking the numbers of range/azimuth looks 1
+echo '    <property name="number of range looks 2">'${num_rng_lk2}'</property>' >> $processdir/alos2App.xml
+echo '    <property name="number of azimuth looks 2">'${num_azi_lk2}'</property>' >> $processdir/alos2App.xml
+# ========================================================================================================
+# Path to DEM and water body data
+echo '    <property name="dem for coregistration">'${dempath1arcsec}'</property>' >> $processdir/alos2App.xml
+echo '    <property name="dem for geocoding">'${dempath3arcsec}'</property>' >> $processdir/alos2App.xml
+echo '    <property name="water body">'${wbdpath}'</property>' >> $processdir/alos2App.xml
+# ========================================================================================================
+# These are interferogram filtering parameters
+echo '    <property name="interferogram filter strength">'${filter_strength}'</property>' >> $processdir/alos2App.xml
+echo '    <property name="interferogram filter window size">'${filter_window_size}'</property>' >> $processdir/alos2App.xml
+echo '    <property name="interferogram filter step size">'${filter_step_size}'</property>' >> $processdir/alos2App.xml  
+echo '    <property name="remove magnitude before filtering">'${remove_magnitude_before_filtering}'</property>' >> $processdir/alos2App.xml   
+# ========================================================================================================    
+# water body mask starting step: None, filt, unwrap  
+echo '    <property name="water body mask starting step">'${water_body_mask_starting_step}'</property>' >> $processdir/alos2App.xml
+# ========================================================================================================    
+# Selecting bounding box. This is a four-element list [s, n, w, e], e.g. [26.24, 30.04, 33.45, 37.79].
+echo '    <property name="geocode bounding box">'${geocode_bounding_box}'</property>' >> $processdir/alos2App.xml
+# ========================================================================================================  
+# These parameters are for ionospheric corrections
+echo '    <property name="do ionospheric phase estimation">'${do_ion}'</property>' >> $processdir/alos2App.xml
+echo '    <property name="apply ionospheric phase correction">'${do_ion}'</property>' >> $processdir/alos2App.xml
+# ======================================================================================================== 
+echo '  </component>' >> $processdir/alos2App.xml
+echo '</alos2App>' >> $processdir/alos2App.xml
+
+# ========================================================================================================
+#                                      Creation of reference.xml                                         #
+# ========================================================================================================
+echo '<component name="reference">' > $processdir/reference.xml
+echo '  <property name="IMAGEFILE">' >> $processdir/reference.xml
+echo '    <value>'${reference_img}'</value>' >> $processdir/reference.xml
+echo '  </property>' >> $processdir/reference.xml
+echo '  <property name="LEADERFILE">' >> $processdir/reference.xml
+echo '    <value>'${reference_led}'</value>' >> $processdir/reference.xml
+echo '  </property>' >> $processdir/reference.xml
+echo '  <property name="OUTPUT">' >> $processdir/reference.xml
+echo '    <value>'${reference_date}'</value>' >> $processdir/reference.xml
+echo '  </property>' >> $processdir/reference.xml
+echo '  <property name="doppler method">useDEFAULT</property>' >> $processdir/reference.xml
+echo '</component>' >> $processdir/reference.xml
+
+# ========================================================================================================
+#                                      Creation of secondary.xml                                         #
+# ========================================================================================================
+echo '<component name="reference">' > $processdir/secondary.xml
+echo '  <property name="IMAGEFILE">' >> $processdir/secondary.xml
+echo '    <value>'${secondary_img}'</value>' >> $processdir/secondary.xml
+echo '  </property>' >> $processdir/secondary.xml
+echo '  <property name="LEADERFILE">' >> $processdir/secondary.xml
+echo '    <value>'${secondary_led}'</value>' >> $processdir/secondary.xml
+echo '  </property>' >> $processdir/secondary.xml
+echo '  <property name="OUTPUT">' >> $processdir/secondary.xml
+echo '    <value>'${secondary_date}'</value>' >> $processdir/secondary.xml
+echo '  </property>' >> $processdir/secondary.xml
+echo '  <property name="doppler method">useDEFAULT</property>' >> $processdir/secondary.xml
+echo '</component>' >> $processdir/secondary.xml
+

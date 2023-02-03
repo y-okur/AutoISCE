@@ -1,0 +1,70 @@
+#!/bin/bash
+
+# Downloads srtm DEHM files for ISCE InSAR Process
+
+# You will need to have a user name and password from urs.earthdata.nasa.gov and you need to include LPDAAC applications to your account.
+# see links for instructions:
+# > https://github.com/isce-framework/isce2#notes-on-digital-elevation-models
+# > https://wiki.earthdata.nasa.gov/display/EL/How+To+Access+Data+With+cURL+And+Wget
+
+## ChangeLogs
+# 2023.02.01: Added automatic dem download support
+# 2023.01.17: Initial creation
+
+source $1
+# dem.py does not work with float values for boundind box.  Use integers.
+#south=5
+#north=13
+#west=121
+#east=128
+
+arrIN=(${geocode_bounding_box//,/ })
+south=${arrIN[0]}
+north=${arrIN[1]} 
+west=${arrIN[2]} 
+east=${arrIN[3]} 
+val=`convert2int.py $south $north $west $east`
+arrIN=(${val//,/ })
+south=${arrIN[0]}
+north=${arrIN[1]} 
+west=${arrIN[2]} 
+east=${arrIN[3]} 
+
+# Download 3 arcsec dem with dem.py
+dir=`pwd`'/dem_3_arcsec'
+    if [ -e $dir ]; then
+        echo "Directory $dir exists, so overwriting result files."
+    else
+        mkdir -p $dir
+    fi
+    cd dem_3_arcsec
+    dem.py -a stitch -b $south $north $west $east -k -s 3 -c -f -u https://e4ftl01.cr.usgs.gov/MEASURES/SRTMGL3.003/2000.02.11
+    fixImageXml.py -i demLat_*_*_Lon_*_*.dem.wgs84 -f
+    rm *.log demLat_*_*_Lon_*_*.dem demLat_*_*_Lon_*_*.dem.vrt demLat_*_*_Lon_*_*.dem.xml
+    cd ../
+ 
+# Download 1 arcsec dem with dem.py
+dir=`pwd`'/dem_1_arcsec'
+    if [ -e $dir ]; then
+        echo "Directory $dir exists, so overwriting result files."
+    else
+        mkdir -p $dir
+    fi
+    cd dem_1_arcsec
+    dem.py -a stitch -b $south $north $west $east -k -s 1 -c -f -u https://e4ftl01.cr.usgs.gov/MEASURES/SRTMGL1.003/2000.02.11
+    fixImageXml.py -i demLat_*_*_Lon_*_*.dem.wgs84 -f
+    rm *.log demLat_*_*_Lon_*_*.dem demLat_*_*_Lon_*_*.dem.vrt demLat_*_*_Lon_*_*.dem.xml
+    cd ../
+
+# Download water body with wbd.py
+dir=`pwd`'/wbd_1_arcsec'
+    if [ -e $dir ]; then
+        echo "Directory $dir exists, so overwriting result files."
+    else
+        mkdir -p $dir
+    fi
+    cd wbd_1_arcsec
+    wbd.py $south $north $west $east
+    fixImageXml.py -i swbdLat_*_*_Lon_*_*.wbd -f
+    cd ../
+

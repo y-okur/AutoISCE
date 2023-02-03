@@ -1,0 +1,364 @@
+#!/bin/bash
+ver=0.5
+
+## Help Display ##
+if [ $# = 0 ]; then
+echo ' ###############################################################################################'
+echo " # Current version: $ver                                                                        #"
+echo " # AutoISCE: Run ISCE batch process for specified pairs of multiple acquisitions.              #"
+echo " # Outputs of AutoISCE can be processed with DeNTiS time-series analysis                       #"
+echo ' ###############################################################################################'
+echo ' # Usage:'
+echo " #   AutoISCE PARFILE"
+echo ' '
+echo '    Example of PARFILE:'
+echo ' '
+echo '     SLCDIR=/Volumes/SSD_TOHOKU_OKUR/alos2/path24flrame3400f2_6/SLCDIR'
+echo '     flist=./pairs.list # this has primary (yyyymmdd), secondary (yyyymmdd)'
+echo '     script=alos2App.py'
+echo '     geocode_bounding_box="" # It can be empty. In this case, the script will automatically determine the boundingbox. Or you can give value like this: geocode_bounding_box=10.3358,11.0933,124.2500,125.1092 given as s,n,w,e. The values should be integers from (-90,90) for latitudes and (-180,180) for longitudes'
+echo '     pol=HH'
+echo '     num_rng_lk1=2 # First look in range'
+echo '     num_azi_lk1=4 # First look in azimuth. Depending on the acquisition mode you should change first looks accordingly. Please see the example .par file. First look is used to form diffential interferogram.'
+echo '     num_rng_lk2=10 # Second look in range'
+echo '     num_azi_lk2=10 # Second look in azimuth. In this example, the final multilook will be 20 by 40 in range and azimuth respectively in the final interfeorgram.'
+echo '     filter_strength=0.3'
+echo '     filter_window_size=32'
+echo '     filter_step_size=4'
+echo '     remove_magnitude_before_filtering=True'
+echo '     water_body_mask_starting_step=unwrap'
+echo '     do_ion=False'
+echo ' '
+echo '    It is assumed that'
+echo '    - the SLC data (DL from JAXA) are stored under SLCDIR.'
+echo '    - ifg pairs info are stored in the file specified by flist'
+echo ' '
+echo '    Example (format) of the file flist:'
+echo ' '
+echo '      20140828 20150924'
+echo '      20150115 20150212'
+echo '      20150115 20151203'
+echo '      20150115 20160310'
+echo '      20150212 20160310'
+echo ' '
+echo '    The two dates are the primary and secondary acquisition dates.'
+echo '    The primary and secondary dates should also be the directory names in SLCDIR.'
+echo ' '
+echo '    2023-, Yagizalp OKUR, LMBP, University of Clermont Auvergne'
+echo ' '
+exit
+fi
+
+## ChangeLogs
+# version 0.5 (2023.02.02): Added support for giving external dem. Paths must be defined in parfile
+# version 0.4 (2023.02.01): Stable version. Added instructions for the parfile. Added outputs to console about the status of the process
+#                           Process workflow has changed. Now, baselines will be calculated first to get both pbaseall.list and boundingbox
+#                           If boundingbox is given in parfile, those values will be used instead. download dem script is also changed. Now
+#                           it can download the dem file automaticaly with the boundingbox. Additionally, console outputs from ISCE will be
+#                           saved to AutoISCE_all.log file, they won't apper on the console.
+# version 0.3 (2023.01.28): Added getboundingbox.py script. It can find the common geoboundingbox for all process pairs. This information
+#                           is later used in geocoding so that all the geocoded outputs will have the same coordinates / dimensions.
+#                           This informaton can also be used for automatic dem download.
+# version 0.2 (2023.01.22): Baseline and main process are separated. Now the script generates pbaseall.list, baselines list, for each pair
+#                           Added downloaddem script to the workflow. Later it can be used for automatic dem download.
+# version 0.1 (2023.01.17): Initial creation
+
+maindir=`pwd`
+cd $maindir
+
+# Delete the log file if exists
+if [ -f $maindir/AutoISCE_all.log ]; then
+   rm $maindir/AutoISCE_all.log
+fi
+
+source $1
+
+fn=AutoISCE_$ver.par
+N=`wc -l $flist | awk '{print $1}'`
+
+# Check if the specified data directory exists
+ls $SLCDIR > /dev/null 2> err.txt
+if [ -s "err.txt" ]; then
+   echo " # Your specified SLC directory does not exist. Exiting."
+   echo " # "
+   exit
+else
+   rm -f err.txt
+fi
+
+echo '' | tee -a "$maindir/AutoISCE_all.log"  
+echo ' ######################################################################################################' | tee -a "$maindir/AutoISCE_all.log"  
+echo ' #                                                                                                    #' | tee -a "$maindir/AutoISCE_all.log"  
+echo " # Running $script --end=baseline to obtain baselines and max/min limits for geocode_bounding_box #" | tee -a "$maindir/AutoISCE_all.log"  
+echo ' #                                                                                                    #' | tee -a "$maindir/AutoISCE_all.log"  
+sleep 5
+
+k=1
+cat $flist | while read i
+do
+   date1=`echo $i | awk '{print $1}'`
+   date2=`echo $i | awk '{print $2}'`
+   id=${date1}_${date2}
+   echo " # AutoISCE_all: $script --end=baseline is running in $id ($k/$N)" | tee -a "$maindir/AutoISCE_all.log"
+   echo " #" | tee -a "$maindir/AutoISCE_all.log"
+
+   if [ -d $id ]; then
+	   echo " # Directory $id exists, skipping."
+      echo " # If you want to reprocess, delete or rename the directory."
+   elif [ ! -e ${SLCDIR}/${date1} ]; then
+           echo " #Primary directory ${date1} not found in SLCDIR, skipping the processing for row $k."
+           echo " #"
+   elif [ ! -e ${SLCDIR}/${date2} ]; then
+           echo " #Secondary directory ${date2} not found in SLCDIR, skipping the processing for row $k."
+           echo " #"
+   else
+
+   mkdir $id
+   processdir=`pwd`/$id
+   referencedir=${SLCDIR}/${date1}
+   reference_img=$referencedir/`cd $referencedir && ls IMG-$pol*`
+   reference_led=$referencedir/`cd $referencedir && ls LED*`
+   secondarydir=${SLCDIR}/${date2}
+   secondary_img=$secondarydir/`cd $secondarydir && ls IMG-$pol*`
+   secondary_led=$secondarydir/`cd $secondarydir && ls LED*`
+   echo " " > $id/$fn
+   echo "processdir=$processdir" >> $id/$fn
+   echo " " >> $id/$fn
+   echo "# Reference Image:" >> $id/$fn 
+   echo "referencedir=$referencedir" >> $id/$fn
+   echo "reference_img=$reference_img" >> $id/$fn
+   echo "reference_led=$reference_led" >> $id/$fn
+   echo "reference_date=$date1" >> $id/$fn
+   echo " " >> $id/$fn
+   echo "# Secondary Image:" >> $id/$fn
+   echo "secondarydir=$secondarydir" >> $id/$fn
+   echo "secondary_img=$secondary_img" >> $id/$fn
+   echo "secondary_led=$secondary_led" >> $id/$fn
+   echo "secondary_date=$date2" >> $id/$fn
+   echo " " >> $id/$fn
+   echo "# Paths to the DEM:" >> $id/$fn
+   echo "dempath1arcsec=$dempath1arcsec" >> $id/$fn
+   echo "dempath3arcsec=$dempath3arcsec" >> $id/$fn
+   echo "wbdpath=$wbdpath" >> $id/$fn
+   echo " " >> $id/$fn
+   echo "# Processing parameters: " >> $id/$fn
+   echo "script=$script" >> $id/$fn
+   echo "pol=$pol" >> $id/$fn
+   echo "num_rng_lk1=$num_rng_lk1" >> $id/$fn
+   echo "num_azi_lk1=$num_azi_lk1" >> $id/$fn
+   echo "num_rng_lk2=$num_rng_lk2" >> $id/$fn
+   echo "num_azi_lk2=$num_azi_lk2" >> $id/$fn
+   echo "filter_strength=$filter_strength" >> $id/$fn
+   echo "filter_window_size=$filter_window_size" >> $id/$fn
+   echo "filter_step_size=$filter_step_size" >> $id/$fn
+   echo "remove_magnitude_before_filtering=$remove_magnitude_before_filtering" >> $id/$fn
+   echo "water_body_mask_starting_step=$water_body_mask_starting_step" >> $id/$fn
+   echo "do_ion=$do_ion" >> $id/$fn
+   bash prep_alos2xml $processdir/$fn  # Need to add this script to PATH
+   cd $processdir
+   iscepath=`which $script`
+   python $iscepath --end=baseline >> $maindir/AutoISCE_all.log 2>&1
+   cd $maindir
+   fi
+   let k++
+done
+
+
+# Obtain perpendicular baselines
+echo ' #'
+echo ' ######################################################################################################'
+echo ' #                                                                                                    #'
+echo " #                  Creating pbaseall.list, the perpendicular baseline data.                          #"
+echo ' #                                                                                                    #'
+
+if [ -f $maindir/pbaseall.list ]; then
+    echo " # pbaseall.list exists. Deleting previous file..."
+    rm $maindir/pbaseall.list
+fi
+   k=1
+   cat $flist | while read i
+   do
+      date1=`echo $i | awk '{print $1}'`
+      date2=`echo $i | awk '{print $2}'`
+
+      id=${date1}_${date2}
+      processdir=`pwd`/$id
+      cd $processdir
+      grep "<perpendicular_baseline_at_center_of_reference_track>" alos2Proc.xml | cut -c62-78 >> $maindir/pbaseall.list
+      cd $maindir
+      let k++
+   done
+
+
+if [ "$geocode_bounding_box" == "" ]; then
+   echo " # geocode_bounding_box is empty."
+   echo " #"
+   echo " # Running getboundingbox.py to obtain max/min limits for the geocode_bounding_box"
+   echo " #"
+   sleep 2
+   geocode_bounding_box=`getboundingbox.py` # Need to add this script to PATH
+   echo " # Determined values for new geocode_bounding_box: $geocode_bounding_box"
+else
+   echo " # geocode_bounding_box is defined in parfile: $geocode_bounding_box "
+   echo " #"
+   echo " # Using $gecodegeocode_bounding_box values for geocoding."
+   sleep 2
+fi
+
+echo ' #'
+echo ' ######################################################################################################'
+echo ' #                                                                                                    #'
+echo " #                                    running downloaddem                                             #"
+echo ' #                                                                                                    #'
+echo ' #'
+
+if [ -z "$dempath1arcsec" ] && [ -z "$dempath3arcsec" ] && [ -z "$wbdpath" ]; then
+   echo " # Paths to dem files are not given in the parfile."
+   echo " # downloadem will obtain the files using the geocode_bounding_box: $geocode_bounding_box "
+   echo " # Files will be saved in $maindir/dem"
+   echo " # "
+   dem1=0
+   dem3=0
+   wbd=0
+   sleep 2
+   # Download dem file
+   if [ -d $maindir/dem ]; then
+      echo " # Directory dem exists, skipping. If you want to redownload, delete or rename the directory."
+      echo ' #'
+      echo ' ######################################################################################################'
+   else
+      mkdir dem
+      cd $maindir/dem
+      touch foo
+      echo "geocode_bounding_box=$geocode_bounding_box" > $maindir/dem/foo
+      downloaddem $maindir/dem/foo  # Need to add this script to PATH
+      rm foo
+   fi
+else
+   echo " # Checking if the dem files exist."
+   if [ -f $dempath1arcsec ]; then
+      echo " #"
+      echo " # File exists for dempath1arcsec:"
+      echo " #   $dempath1arcsec"
+      dem1=1
+   else
+      echo " #" 
+      echo " # File does not exists for dempath1arcsec. Check the paths. "
+      echo " # Exiting..."
+      exit  
+   fi
+   if [ -f $dempath3arcsec ]; then
+      echo " #"
+      echo " # File exists for dempath3arcsec:"
+      echo " #   $dempath3arcsec"
+      dem3=1
+   else
+      echo " #"
+      echo " # File does not exists for dempath3arcsec. Check the paths. "
+      echo " # Exiting..."
+      exit  
+   fi 
+   if [ -f $wbdpath ]; then
+      echo " #"
+      echo " # File exists for wbdpath:"
+      echo " #   $wbdpath"
+      wbd=1
+   else
+      echo " #"
+      echo " # File does not exists for wbdpath. Check the paths. "
+      echo " # Exiting..."
+      exit  
+   fi 
+fi
+
+cd $maindir
+echo ' #' | tee -a "$maindir/AutoISCE_all.log"  
+echo ' ######################################################################################################' | tee -a "$maindir/AutoISCE_all.log"  
+echo ' #' | tee -a "$maindir/AutoISCE_all.log"  
+k=1
+cat $flist | while read i
+do
+
+   date1=`echo $i | awk '{print $1}'`
+   date2=`echo $i | awk '{print $2}'`
+   id=${date1}_${date2}
+   echo " # AutoISCE_all: $script --start=download_dem is running in $id ($k/$N)" | tee -a "$maindir/AutoISCE_all.log"  
+   if [ -d $id/insar ]; then
+	   echo " # Process directory $id/insar exists, skipping." | tee -a "$maindir/AutoISCE_all.log"  
+      echo " # If you want to reprocess, delete or rename the directory $id." | tee -a "$maindir/AutoISCE_all.log"  
+      echo " #" | tee -a "$maindir/AutoISCE_all.log"  
+   else
+      echo " #" | tee -a "$maindir/AutoISCE_all.log"  
+      processdir=`pwd`/$id
+      referencedir=${SLCDIR}/${date1}
+      reference_img=$referencedir/`cd $referencedir && ls IMG-$pol*`
+      reference_led=$referencedir/`cd $referencedir && ls LED*`
+      secondarydir=${SLCDIR}/${date2}
+      secondary_img=$secondarydir/`cd $secondarydir && ls IMG-$pol*`
+      secondary_led=$secondarydir/`cd $secondarydir && ls LED*`
+
+      if [ $dem1 -eq 1 ]; then
+         dempath1arcsec=$dempath1arcsec
+      else
+         dempath1arcsec=$maindir/dem/dem_1_arcsec/`cd $maindir/dem/dem_1_arcsec && ls *wgs84`
+      fi
+      if [ $dem3 -eq 1 ]; then
+         dempath3arcsec=$dempath3arcsec
+      else
+         dempath3arcsec=$maindir/dem/dem_3_arcsec/`cd $maindir/dem/dem_3_arcsec && ls *wgs84`
+      fi
+      if [ $wbd -eq 1 ]; then
+         wbdpath=$wbdpath
+      else
+         wbdpath=$maindir/dem/wbd_1_arcsec/`cd $maindir/dem/wbd_1_arcsec && ls *wbd`
+      fi      
+      
+      echo " " > $id/$fn
+      echo "processdir=$processdir" >> $id/$fn
+      echo " " >> $id/$fn
+      echo "# Reference Image:" >> $id/$fn 
+      echo "referencedir=$referencedir" >> $id/$fn
+      echo "reference_img=$reference_img" >> $id/$fn
+      echo "reference_led=$reference_led" >> $id/$fn
+      echo "reference_date=$date1" >> $id/$fn
+      echo " " >> $id/$fn
+      echo "# Secondary Image:" >> $id/$fn
+      echo "secondarydir=$secondarydir" >> $id/$fn
+      echo "secondary_img=$secondary_img" >> $id/$fn
+      echo "secondary_led=$secondary_led" >> $id/$fn
+      echo "secondary_date=$date2" >> $id/$fn
+      echo " " >> $id/$fn
+      echo "# Paths to the DEM:" >> $id/$fn
+      echo "dempath1arcsec=$dempath1arcsec" >> $id/$fn
+      echo "dempath3arcsec=$dempath3arcsec" >> $id/$fn
+      echo "wbdpath=$wbdpath" >> $id/$fn
+      echo " " >> $id/$fn
+      echo "# Processing parameters: " >> $id/$fn
+      echo "script=$script" >> $id/$fn
+      echo "pol=$pol" >> $id/$fn
+      echo "num_rng_lk1=$num_rng_lk1" >> $id/$fn
+      echo "num_azi_lk1=$num_azi_lk1" >> $id/$fn
+      echo "num_rng_lk2=$num_rng_lk2" >> $id/$fn
+      echo "num_azi_lk2=$num_azi_lk2" >> $id/$fn
+      echo "filter_strength=$filter_strength" >> $id/$fn
+      echo "filter_window_size=$filter_window_size" >> $id/$fn
+      echo "filter_step_size=$filter_step_size" >> $id/$fn
+      echo "remove_magnitude_before_filtering=$remove_magnitude_before_filtering" >> $id/$fn
+      echo "water_body_mask_starting_step=$water_body_mask_starting_step" >> $id/$fn
+      echo "do_ion=$do_ion" >> $id/$fn
+      echo "geocode_bounding_box=$geocode_bounding_box" >> $id/$fn
+      bash prep_alos2xml $processdir/$fn  # Need to add this script to PATH
+      cd $processdir
+      iscepath=`which $script`
+      python $iscepath --start=download_dem >> $maindir/AutoISCE_all.log 2>&1
+      cd $maindir
+   fi
+   let k++
+done
+
+echo ' #'
+echo ' ######################################################################################################'
+echo ' #                                                                                                    #'
+echo " #                                  AutoISCE_all is complete                                          #"
+echo ' #                                                                                                    #'
+echo ' ######################################################################################################'

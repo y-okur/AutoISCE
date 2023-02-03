@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# Version of AutoISCE
+AutoISCE_version=0.5
+
+# File that contains pair list
+# Each row is a pair in yyyymmdd yyyymmdd format.
+flist=./pairs.list
+
+# File that contains slc list
+# Each row is a pair in yyyymmdd yyyymmdd format.
+# slclist=./slc.list
+
+# Your directory where SLCs are located, outdir of px_alos2_unzip_all 
+SLCDIR=/Volumes/SSD_TOHOKU_OKUR/alos2/path24frame3400f2_6/SLCDIR
+
+# Select the .py script you want to use. Available scripts: alos2App.py
+# If you have multiple ISCE installation you may need to specify the path in AutoISCE_all ('iscepath' variable)
+script=alos2App.py 
+
+# SAR polarization, usually HH
+pol=HH 
+
+# Geocode bounding box given as s,n,w,e, e.g. 26.24,30.04,33.45,37.79. If you leave this parameter empty AutoISCE_all will calculate
+# the bounding box automatically.
+geocode_bounding_box=10.3358,11.0933,124.2500,125.1092
+# geocode_bounding_box=""
+
+# range and azimuth look numbers
+# Below is the default number of looks used by the software. REMEMBER, NORMALLY YOU ONLY NEED TO CHANGE number of range/azimuth looks 2!!!
+# ============================================================================================================================================
+#  Operation Mode | Mode (AUIG2) | Mode (in file name) | look1 (r*a) | look2 (r*a) |  total insar (r*a) |  look_ion (r*a) | total ion (r*a)
+# ============================================================================================================================================
+#    spotlight    |     SPT      | SBS                 |     2*4     |     4*4     |        8*16        |      16*16      |      32*64
+# ============================================================================================================================================
+#    stripmap     |     SM1      | UBS, UBD            |     2*3     |     4*4     |        8*12        |      32*32      |      64*96
+#                 |     SM2      | HBS, HBD, HBQ       |     2*4     |     4*4     |        8*16        |      16*16      |      32*64
+#                 |     SM3      | FBS, FBD, FBQ       |     2*4     |     4*4     |        8*16        |      16*16      |      32*64
+# ============================================================================================================================================
+#    ScanSAR      |     WD1      | WBS, WBD            |     1*14    |     5*2     |        5*28        |      80*32      |      80*448
+#                 |     WD1      | WWS, WWD            |     2*14    |     5*2     |       10*28        |      80*32      |     160*448
+#                 |     WD2      | VBS, VBD            |     1*14    |     5*2     |        5*28        |      80*32      |      80*448
+# ============================================================================================================================================
+
+# To find the acquisition mode code, check the unpacked ALOS-2 product. For example, in the following
+# file name
+# IMG-HH-ALOS2183010685-171012-FBDR1.1__A
+#                              ^^^
+# FBD (indicated by ^) is the acquisition mode code.
+num_rng_lk1=2
+num_azi_lk1=4
+num_rng_lk2=10
+num_azi_lk2=10
+# In this case the total multilook will be 20 by 40 in range and azimuth respectively
+
+# Default Parameters for filtering
+filter_strength=0.3
+filter_window_size=32
+filter_step_size=4
+remove_magnitude_before_filtering=True
+
+# water body mask starting step: None, filt, unwrap
+water_body_mask_starting_step=unwrap
+
+# Ionospheric correction: True or False
+do_ion=False
+
+# Giving the dem files manually
+dempath1arcsec="/Users/yagizalp/Documents/ISCE_implementation_for_dentis/dem/dem_1_arcsec/demLat_N05_N13_Lon_E121_E128.dem.wgs84"  
+dempath3arcsec="/Users/yagizalp/Documents/ISCE_implementation_for_dentis/dem/dem_3_arcsec/demLat_N05_N13_Lon_E121_E128.dem.wgs84" 
+wbdpath="/Users/yagizalp/Documents/ISCE_implementation_for_dentis/dem/wbd_1_arcsec/swbdLat_N05_N13_Lon_E121_E128.wbd"

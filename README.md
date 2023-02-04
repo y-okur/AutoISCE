@@ -58,7 +58,7 @@ BRS-HV-ALOS2099363400-160326-FBDR1.1__D.jpg     LED-ALOS2099363400-160326-FBDR1.
 IMG-HH-ALOS2099363400-160326-FBDR1.1__D         TRL-ALOS2099363400-160326-FBDR1.1__D
 ```
 
-* Then you need to create **pairs.list**. This file must contain the dates you want to process in *yyyymmdd yyyymmdd* format:
+* Then you need to create **pairs.list**. This file must contain the dates you want to process in *yyyymmdd yyyymmdd* format. Here, the first date is the reference, second date is the secondary image:
 
 An example file:
 ```
@@ -80,7 +80,7 @@ An example file:
 ```
 **Important**: You must leave one empty space at the end of the file.
 
-* You must prepare a paramater file. You can use the example for reference (AutoISCE_all_example.par).
+* You must prepare a paramater file. You can use the example for reference (AutoISCE_example.par).
 
 * You need to give paths to your slc directory > **SLCDIR**, pairs.list > **flist**. Don't change the **script** variable.
 Because only alos2App.py is available right now. Later, other scripts might be available.

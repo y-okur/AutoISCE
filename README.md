@@ -111,7 +111,7 @@ Then run the script in the main process folder:
 AutoISCE PARFILE
 ```
 
-The script will run *alos2App.py* until baseline step to obtain perpendicular baselines for each image pairs. Since we want to use the outputs in a time-series, geocoded outputs have to be in the same reference. If **geocode_bounding_box** is not given in the parameter file, the script will run *getboundingbox.py* to determine the smallest **geocode_bounding_box** for all image pairs. This value will be used for both geocoding and automatic dem download.
+The script will run *alos2App.py* until baseline step to obtain perpendicular baselines for each image pairs. Since we want to use the outputs in a time-series, geocoded outputs have to be in the same reference frame. If **geocode_bounding_box** is not given in the parameter file, the script will run *getboundingbox.py* to determine the smallest **geocode_bounding_box** for all image pairs. This value will be used for both geocoding and automatic dem download.
 
 After the baseline step is over, *alos2App.py* will run until the last step to process all image pairs one by one.
 

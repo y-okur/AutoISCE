@@ -1,0 +1,301 @@
+#!/bin/bash
+ver=0.3
+
+## Help Display ##
+if [ $# = 0 ]; then
+echo ' ###############################################################################################'
+echo " # AutoISCE_all_${ver}: Run ISCE batch process for specified pairs of multiple acquisitions.      #"
+echo " # Outputs of AutoISCE_all_${ver} can be processed with DeNTiS time-series analysis               #"
+echo ' ###############################################################################################'
+echo ' # Usage:'
+echo " #   AutoISCE_all_${ver} PARFILE"
+exit
+fi
+
+## ChangeLogs
+# version 0.4 (2023.01.28): Added getboundingbox.py script. It can find the common geoboundingbox for all process pairs. This information
+#                           is later used in geocoding so that all the geocoded outputs will have the same coordinates / dimensions.
+#                           This informaton can also be used for automatic dem download.
+# version 0.3 (2023.01.22): Baseline and main process are separated. Now the script generates pbaseall.list, baselines list, for each pair
+# version 0.2 (2023.01.19): Added downloaddem script to the workflow. Later it can be used for automatic dem download.
+# version 0.1 (2023.01.17): Initial creation
+
+maindir=`pwd`
+# Download dem file
+if [ -d $maindir/dem ]; then
+   echo "Directory dem exists, skipping. If you want to redownload, delete or rename the directory."
+else
+   mkdir dem
+   cd $maindir/dem
+   bash ../downloaddem  # Need to add this script to PATH
+fi
+
+cd $maindir
+
+source $1
+
+fn=AutoISCE_$ver.par
+N=`wc -l $flist | awk '{print $1}'`
+
+# Check if the specified data directory exists
+ls $SLCDIR > /dev/null 2> err.txt
+if [ -s "err.txt" ]; then
+   echo "Your specified SLC directory does not exist. Exiting."
+   echo
+   exit
+else
+   rm -f err.txt
+fi
+
+# If the bounding box is empty
+if [ -z "$geocode_bounding_box" ]
+   then
+   echo ' ###############################################################################################'
+   echo ' # Geocode bounding box is not defined.'
+   echo ' # AutoISCE_all will determine the bounding box automatically '
+   echo ' ###############################################################################################'
+   sleep 5
+   
+   k=1
+   cat $flist | while read i
+   do
+      date1=`echo $i | awk '{print $1}'`
+      date2=`echo $i | awk '{print $2}'`
+
+      id=${date1}_${date2}
+
+      if [ -d $id ]; then
+   	   echo "Directory $id exists, skipping. If you want to reprocess, delete or rename the directory."
+
+      # skip if primary and/or secondary directories do not exist
+      elif [ ! -e ${SLCDIR}/${date1} ]; then
+              echo "Primary directory ${date1} not found in SLCDIR, skipping the processing for row $k."
+              echo " "
+      elif [ ! -e ${SLCDIR}/${date2} ]; then
+              echo "Secondary directory ${date2} not found in SLCDIR, skipping the processing for row $k."
+              echo " "
+      else
+
+      mkdir $id
+      processdir=`pwd`/$id
+      referencedir=${SLCDIR}/${date1}
+      reference_img=$referencedir/`cd $referencedir && ls IMG-$pol*`
+      reference_led=$referencedir/`cd $referencedir && ls LED*`
+      secondarydir=${SLCDIR}/${date2}
+      secondary_img=$secondarydir/`cd $secondarydir && ls IMG-$pol*`
+      secondary_led=$secondarydir/`cd $secondarydir && ls LED*`
+      dempath1arcsec=$maindir/dem/dem_1_arcsec/`cd $maindir/dem/dem_1_arcsec && ls *wgs84`
+      dempath3arcsec=$maindir/dem/dem_3_arcsec/`cd $maindir/dem/dem_3_arcsec && ls *wgs84`
+      wbdpath=$maindir/dem/wbd_1_arcsec/`cd $maindir/dem/wbd_1_arcsec && ls *wbd`
+
+      echo " " > $id/$fn
+      echo "processdir=$processdir" >> $id/$fn
+      echo " " >> $id/$fn
+      echo "# Reference Image:" >> $id/$fn 
+      echo "referencedir=$referencedir" >> $id/$fn
+      echo "reference_img=$reference_img" >> $id/$fn
+      echo "reference_led=$reference_led" >> $id/$fn
+      echo "reference_date=$date1" >> $id/$fn
+      echo " " >> $id/$fn
+      echo "# Secondary Image:" >> $id/$fn
+      echo "secondarydir=$secondarydir" >> $id/$fn
+      echo "secondary_img=$secondary_img" >> $id/$fn
+      echo "secondary_led=$secondary_led" >> $id/$fn
+      echo "secondary_date=$date2" >> $id/$fn
+      echo " " >> $id/$fn
+      echo "# Paths to the DEM:" >> $id/$fn
+      echo "dempath1arcsec=$dempath1arcsec" >> $id/$fn
+      echo "dempath3arcsec=$dempath3arcsec" >> $id/$fn
+      echo "wbdpath=$wbdpath" >> $id/$fn
+      echo " " >> $id/$fn
+      echo "# Processing parameters: " >> $id/$fn
+      echo "script=$script" >> $id/$fn
+      echo "pol=$pol" >> $id/$fn
+      echo "num_rng_lk1=$num_rng_lk1" >> $id/$fn
+      echo "num_azi_lk1=$num_azi_lk1" >> $id/$fn
+      echo "num_rng_lk2=$num_rng_lk2" >> $id/$fn
+      echo "num_azi_lk2=$num_azi_lk2" >> $id/$fn
+      echo "filter_strength=$filter_strength" >> $id/$fn
+      echo "filter_window_size=$filter_window_size" >> $id/$fn
+      echo "filter_step_size=$filter_step_size" >> $id/$fn
+      echo "remove_magnitude_before_filtering=$remove_magnitude_before_filtering" >> $id/$fn
+      echo "water_body_mask_starting_step=$water_body_mask_starting_step" >> $id/$fn
+      echo "do_ion=$do_ion" >> $id/$fn
+      echo "geocode_bounding_box=$geocode_bounding_box" >> $id/$fn
+
+      bash prep_alos2xml $processdir/$fn  # Need to add this script to PATH
+      cd $processdir
+      iscepath=`which $script`
+      python $iscepath --end=unwrap
+      cd $maindir
+
+      fi
+
+      let k++
+
+   done
+
+   new_bounding_box=`python getboundingbox.py` # Need to add this script to PATH
+   
+   k=1
+   cat $flist | while read i
+   do
+      date1=`echo $i | awk '{print $1}'`
+      date2=`echo $i | awk '{print $2}'`
+
+      id=${date1}_${date2}
+      processdir=`pwd`/$id
+      referencedir=${SLCDIR}/${date1}
+      reference_img=$referencedir/`cd $referencedir && ls IMG-$pol*`
+      reference_led=$referencedir/`cd $referencedir && ls LED*`
+      secondarydir=${SLCDIR}/${date2}
+      secondary_img=$secondarydir/`cd $secondarydir && ls IMG-$pol*`
+      secondary_led=$secondarydir/`cd $secondarydir && ls LED*`
+      dempath1arcsec=$maindir/dem/dem_1_arcsec/`cd $maindir/dem/dem_1_arcsec && ls *wgs84`
+      dempath3arcsec=$maindir/dem/dem_3_arcsec/`cd $maindir/dem/dem_3_arcsec && ls *wgs84`
+      wbdpath=$maindir/dem/wbd_1_arcsec/`cd $maindir/dem/wbd_1_arcsec && ls *wbd`
+
+      echo " " > $id/$fn
+      echo "processdir=$processdir" >> $id/$fn
+      echo " " >> $id/$fn
+      echo "# Reference Image:" >> $id/$fn 
+      echo "referencedir=$referencedir" >> $id/$fn
+      echo "reference_img=$reference_img" >> $id/$fn
+      echo "reference_led=$reference_led" >> $id/$fn
+      echo "reference_date=$date1" >> $id/$fn
+      echo " " >> $id/$fn
+      echo "# Secondary Image:" >> $id/$fn
+      echo "secondarydir=$secondarydir" >> $id/$fn
+      echo "secondary_img=$secondary_img" >> $id/$fn
+      echo "secondary_led=$secondary_led" >> $id/$fn
+      echo "secondary_date=$date2" >> $id/$fn
+      echo " " >> $id/$fn
+      echo "# Paths to the DEM:" >> $id/$fn
+      echo "dempath1arcsec=$dempath1arcsec" >> $id/$fn
+      echo "dempath3arcsec=$dempath3arcsec" >> $id/$fn
+      echo "wbdpath=$wbdpath" >> $id/$fn
+      echo " " >> $id/$fn
+      echo "# Processing parameters: " >> $id/$fn
+      echo "script=$script" >> $id/$fn
+      echo "pol=$pol" >> $id/$fn
+      echo "num_rng_lk1=$num_rng_lk1" >> $id/$fn
+      echo "num_azi_lk1=$num_azi_lk1" >> $id/$fn
+      echo "num_rng_lk2=$num_rng_lk2" >> $id/$fn
+      echo "num_azi_lk2=$num_azi_lk2" >> $id/$fn
+      echo "filter_strength=$filter_strength" >> $id/$fn
+      echo "filter_window_size=$filter_window_size" >> $id/$fn
+      echo "filter_step_size=$filter_step_size" >> $id/$fn
+      echo "remove_magnitude_before_filtering=$remove_magnitude_before_filtering" >> $id/$fn
+      echo "water_body_mask_starting_step=$water_body_mask_starting_step" >> $id/$fn
+      echo "do_ion=$do_ion" >> $id/$fn
+      echo "geocode_bounding_box=$new_bounding_box" >> $id/$fn
+
+      bash prep_alos2xml $processdir/$fn  # Need to add this script to PATH
+      cd $processdir
+      iscepath=`which $script`
+      python $iscepath --start=geocode
+      cd $maindir
+
+      let k++
+   done
+
+   else
+   k=1
+   cat $flist | while read i
+   do
+      date1=`echo $i | awk '{print $1}'`
+      date2=`echo $i | awk '{print $2}'`
+
+      id=${date1}_${date2}
+
+      if [ -d $id ]; then
+   	   echo "Directory $id exists, skipping. If you want to reprocess, delete or rename the directory."
+
+      # skip if primary and/or secondary directories do not exist
+      elif [ ! -e ${SLCDIR}/${date1} ]; then
+              echo "Primary directory ${date1} not found in SLCDIR, skipping the processing for row $k."
+              echo " "
+      elif [ ! -e ${SLCDIR}/${date2} ]; then
+              echo "Secondary directory ${date2} not found in SLCDIR, skipping the processing for row $k."
+              echo " "
+      else
+
+      mkdir $id
+      processdir=`pwd`/$id
+      referencedir=${SLCDIR}/${date1}
+      reference_img=$referencedir/`cd $referencedir && ls IMG-$pol*`
+      reference_led=$referencedir/`cd $referencedir && ls LED*`
+      secondarydir=${SLCDIR}/${date2}
+      secondary_img=$secondarydir/`cd $secondarydir && ls IMG-$pol*`
+      secondary_led=$secondarydir/`cd $secondarydir && ls LED*`
+      dempath1arcsec=$maindir/dem/dem_1_arcsec/`cd $maindir/dem/dem_1_arcsec && ls *wgs84`
+      dempath3arcsec=$maindir/dem/dem_3_arcsec/`cd $maindir/dem/dem_3_arcsec && ls *wgs84`
+      wbdpath=$maindir/dem/wbd_1_arcsec/`cd $maindir/dem/wbd_1_arcsec && ls *wbd`
+
+      echo " " > $id/$fn
+      echo "processdir=$processdir" >> $id/$fn
+      echo " " >> $id/$fn
+      echo "# Reference Image:" >> $id/$fn 
+      echo "referencedir=$referencedir" >> $id/$fn
+      echo "reference_img=$reference_img" >> $id/$fn
+      echo "reference_led=$reference_led" >> $id/$fn
+      echo "reference_date=$date1" >> $id/$fn
+      echo " " >> $id/$fn
+      echo "# Secondary Image:" >> $id/$fn
+      echo "secondarydir=$secondarydir" >> $id/$fn
+      echo "secondary_img=$secondary_img" >> $id/$fn
+      echo "secondary_led=$secondary_led" >> $id/$fn
+      echo "secondary_date=$date2" >> $id/$fn
+      echo " " >> $id/$fn
+      echo "# Paths to the DEM:" >> $id/$fn
+      echo "dempath1arcsec=$dempath1arcsec" >> $id/$fn
+      echo "dempath3arcsec=$dempath3arcsec" >> $id/$fn
+      echo "wbdpath=$wbdpath" >> $id/$fn
+      echo " " >> $id/$fn
+      echo "# Processing parameters: " >> $id/$fn
+      echo "script=$script" >> $id/$fn
+      echo "pol=$pol" >> $id/$fn
+      echo "num_rng_lk1=$num_rng_lk1" >> $id/$fn
+      echo "num_azi_lk1=$num_azi_lk1" >> $id/$fn
+      echo "num_rng_lk2=$num_rng_lk2" >> $id/$fn
+      echo "num_azi_lk2=$num_azi_lk2" >> $id/$fn
+      echo "filter_strength=$filter_strength" >> $id/$fn
+      echo "filter_window_size=$filter_window_size" >> $id/$fn
+      echo "filter_step_size=$filter_step_size" >> $id/$fn
+      echo "remove_magnitude_before_filtering=$remove_magnitude_before_filtering" >> $id/$fn
+      echo "water_body_mask_starting_step=$water_body_mask_starting_step" >> $id/$fn
+      echo "do_ion=$do_ion" >> $id/$fn
+      echo "geocode_bounding_box=$geocode_bounding_box" >> $id/$fn
+
+      bash prep_alos2xml $processdir/$fn  # Need to add this script to PATH
+      cd $processdir
+      iscepath=`which $script`
+      python $iscepath
+      cd $maindir
+
+      fi
+
+      let k++
+
+   done
+fi
+
+# Obtain perpendicular baselines
+echo "Creating pbaseall.list, the perpendicular baseline data..."
+if [ -f $maindir/pbaseall.list ]; then
+    echo "pbaseall.list exists. Deleting previous file..."
+    rm $maindir/pbaseall.list
+fi
+   k=1
+   cat $flist | while read i
+   do
+      date1=`echo $i | awk '{print $1}'`
+      date2=`echo $i | awk '{print $2}'`
+
+      id=${date1}_${date2}
+      processdir=`pwd`/$id
+      cd $processdir
+      grep "<perpendicular_baseline_at_center_of_reference_track>" alos2Proc.xml | cut -c62-78 >> $maindir/pbaseall.list
+      cd $maindir
+      let k++
+   done

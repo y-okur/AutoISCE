@@ -23,7 +23,6 @@ pol=HH
 
 # Geocode bounding box given as s,n,w,e, e.g. 26.24,30.04,33.45,37.79. If you leave this parameter empty AutoISCE_all will calculate
 # the bounding box automatically.
-geocode_bounding_box=10.3358,11.0933,124.2500,125.1092
 # geocode_bounding_box=""
 
 # range and azimuth look numbers
@@ -63,7 +62,17 @@ remove_magnitude_before_filtering=True
 water_body_mask_starting_step=unwrap
 
 # Ionosphere correction: True or False
-do_ion=False
+do_ion=True
+# Use a larger number of looks results in smaller image size, which saves time in filtering in
+# ionosphere estimation. However, a larger number of looks may also lead to phase aliasing in
+# the resulting inteferograms and therefore lead to phase unwrapping errors, which causes
+# significant errors in ionosphere estimation.
+# If the area has strong troposhere or phase variations (normally in areas with large height
+# differences such as edges of Tibetan Plateau), a smaller number of looks should be used to
+# avoid phase aliasing after taking looks. E.g. 1/2 of the default number of range/azimuth looks
+# ion that can be found in the annotation of parameter 'number of range looks 1'.
+num_rng_lk_ion=32 # Default number is 16
+num_azi_lk_ion=32 # Default number is 16
 
 # Mask for ionosphere correction
 #mask=

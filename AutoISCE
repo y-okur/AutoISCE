@@ -1,5 +1,5 @@
 #!/bin/bash
-ver=0.5
+ver=0.6
 
 ## Help Display ##
 if [ $# = 0 ]; then
@@ -50,12 +50,13 @@ exit
 fi
 
 ## ChangeLogs
+# version 0.6 (2024.02.12) : Added a mask feature during ionosphere correction. An external mask file can be used.
 # version 0.5 (2023.02.02): Added support for giving external dem. Paths must be defined in parfile
 # version 0.4 (2023.02.01): Stable version. Added instructions for the parfile. Added outputs to console about the status of the process
 #                           Process workflow has changed. Now, baselines will be calculated first to get both pbaseall.list and boundingbox
 #                           If boundingbox is given in parfile, those values will be used instead. download dem script is also changed. Now
 #                           it can download the dem file automaticaly with the boundingbox. Additionally, console outputs from ISCE will be
-#                           saved to AutoISCE_all.log file, they won't apper on the console.
+#                           saved to AutoISCE.log file, they won't apper on the console.
 # version 0.3 (2023.01.28): Added getboundingbox.py script. It can find the common geoboundingbox for all process pairs. This information
 #                           is later used in geocoding so that all the geocoded outputs will have the same coordinates / dimensions.
 #                           This informaton can also be used for automatic dem download.
@@ -67,8 +68,8 @@ maindir=`pwd`
 cd $maindir
 
 # Delete the log file if exists
-if [ -f $maindir/AutoISCE_all.log ]; then
-   rm $maindir/AutoISCE_all.log
+if [ -f $maindir/AutoISCE.log ]; then
+   rm $maindir/AutoISCE.log
 fi
 
 source $1
@@ -86,12 +87,12 @@ else
    rm -f err.txt
 fi
 
-echo '' | tee -a "$maindir/AutoISCE_all.log"  
-echo ' ######################################################################################################' | tee -a "$maindir/AutoISCE_all.log"  
-echo ' #                                                                                                    #' | tee -a "$maindir/AutoISCE_all.log"  
-echo " # Running $script --end=baseline to obtain baselines and max/min limits for geocode_bounding_box #" | tee -a "$maindir/AutoISCE_all.log"  
-echo ' #                                                                                                    #' | tee -a "$maindir/AutoISCE_all.log"  
-sleep 5
+echo '' | tee -a "$maindir/AutoISCE.log"  
+echo ' ######################################################################################################' | tee -a "$maindir/AutoISCE.log"  
+echo ' #                                                                                                    #' | tee -a "$maindir/AutoISCE.log"  
+echo " # Running $script --end=baseline to obtain baselines and max/min limits for geocode_bounding_box #" | tee -a "$maindir/AutoISCE.log"  
+echo ' #                                                                                                    #' | tee -a "$maindir/AutoISCE.log"  
+# sleep 5
 
 k=1
 cat $flist | while read i
@@ -99,8 +100,8 @@ do
    date1=`echo $i | awk '{print $1}'`
    date2=`echo $i | awk '{print $2}'`
    id=${date1}_${date2}
-   echo " # AutoISCE_all: $script --end=baseline is running in $id ($k/$N)" | tee -a "$maindir/AutoISCE_all.log"
-   echo " #" | tee -a "$maindir/AutoISCE_all.log"
+   echo " # AutoISCE: $script --end=baseline is running in $id ($k/$N)" | tee -a "$maindir/AutoISCE.log"
+   echo " #" | tee -a "$maindir/AutoISCE.log"
 
    if [ -d $id ]; then
 	   echo " # Directory $id exists, skipping."
@@ -154,10 +155,12 @@ do
    echo "remove_magnitude_before_filtering=$remove_magnitude_before_filtering" >> $id/$fn
    echo "water_body_mask_starting_step=$water_body_mask_starting_step" >> $id/$fn
    echo "do_ion=$do_ion" >> $id/$fn
-   bash prep_alos2xml $processdir/$fn  # Need to add this script to PATH
+   echo "num_rng_lk_ion=$num_rng_lk_ion" >> $id/$fn
+   echo "num_azi_lk_ion=$num_azi_lk_ion" >> $id/$fn
+   bash prep_alos2xml $processdir/$fn >> $maindir/AutoISCE.log 2>&1
    cd $processdir
    iscepath=`which $script`
-   python $iscepath --end=baseline >> $maindir/AutoISCE_all.log 2>&1
+   python $iscepath --end=baseline >> $maindir/AutoISCE.log 2>&1
    cd $maindir
    fi
    let k++
@@ -195,14 +198,14 @@ if [ "$geocode_bounding_box" == "" ]; then
    echo " #"
    echo " # Running getboundingbox.py to obtain max/min limits for the geocode_bounding_box"
    echo " #"
-   sleep 2
-   geocode_bounding_box=`getboundingbox.py` # Need to add this script to PATH
+   # sleep 2
+   geocode_bounding_box=`getboundingbox.py` >> $maindir/AutoISCE.log 2>&1
    echo " # Determined values for new geocode_bounding_box: $geocode_bounding_box"
 else
    echo " # geocode_bounding_box is defined in parfile: $geocode_bounding_box "
    echo " #"
    echo " # Using $gecodegeocode_bounding_box values for geocoding."
-   sleep 2
+   # sleep 2
 fi
 
 echo ' #'
@@ -220,18 +223,16 @@ if [ -z "$dempath1arcsec" ] && [ -z "$dempath3arcsec" ] && [ -z "$wbdpath" ]; th
    dem1=0
    dem3=0
    wbd=0
-   sleep 2
+   # sleep 2
    # Download dem file
    if [ -d $maindir/dem ]; then
       echo " # Directory dem exists, skipping. If you want to redownload, delete or rename the directory."
-      echo ' #'
-      echo ' ######################################################################################################'
    else
       mkdir dem
       cd $maindir/dem
       touch foo
       echo "geocode_bounding_box=$geocode_bounding_box" > $maindir/dem/foo
-      downloaddem $maindir/dem/foo  # Need to add this script to PATH
+      downloaddem $maindir/dem/foo
       rm foo
    fi
 else
@@ -272,23 +273,25 @@ else
 fi
 
 cd $maindir
-echo ' #' | tee -a "$maindir/AutoISCE_all.log"  
-echo ' ######################################################################################################' | tee -a "$maindir/AutoISCE_all.log"  
-echo ' #' | tee -a "$maindir/AutoISCE_all.log"  
+echo ' #' | tee -a "$maindir/AutoISCE.log"  
+echo ' ######################################################################################################' | tee -a "$maindir/AutoISCE.log"
+echo ' #                                                                                                    #' | tee -a "$maindir/AutoISCE.log" 
+echo ' #                                        Processing                                                  #' | tee -a "$maindir/AutoISCE.log" 
+echo ' #' | tee -a "$maindir/AutoISCE.log"  
+
 k=1
 cat $flist | while read i
 do
-
    date1=`echo $i | awk '{print $1}'`
    date2=`echo $i | awk '{print $2}'`
    id=${date1}_${date2}
-   echo " # AutoISCE_all: $script --start=download_dem is running in $id ($k/$N)" | tee -a "$maindir/AutoISCE_all.log"  
+   echo " # AutoISCE: $script is running in $id ($k/$N)" | tee -a "$maindir/AutoISCE.log"  
    if [ -d $id/insar ]; then
-	   echo " # Process directory $id/insar exists, skipping." | tee -a "$maindir/AutoISCE_all.log"  
-      echo " # If you want to reprocess, delete or rename the directory $id." | tee -a "$maindir/AutoISCE_all.log"  
-      echo " #" | tee -a "$maindir/AutoISCE_all.log"  
+	   echo " # Process directory $id/insar exists, skipping." | tee -a "$maindir/AutoISCE.log"  
+      echo " # If you want to reprocess, delete or rename the directory $id." | tee -a "$maindir/AutoISCE.log"  
+      echo " #" | tee -a "$maindir/AutoISCE.log"
    else
-      echo " #" | tee -a "$maindir/AutoISCE_all.log"  
+      echo " #" | tee -a "$maindir/AutoISCE.log"  
       processdir=`pwd`/$id
       referencedir=${SLCDIR}/${date1}
       reference_img=$referencedir/`cd $referencedir && ls IMG-$pol*`
@@ -346,11 +349,41 @@ do
       echo "remove_magnitude_before_filtering=$remove_magnitude_before_filtering" >> $id/$fn
       echo "water_body_mask_starting_step=$water_body_mask_starting_step" >> $id/$fn
       echo "do_ion=$do_ion" >> $id/$fn
+      echo "num_rng_lk_ion=$num_rng_lk_ion" >> $id/$fn
+      echo "num_azi_lk_ion=$num_azi_lk_ion" >> $id/$fn
+      echo "mask=$mask" >> $id/$fn
       echo "geocode_bounding_box=$geocode_bounding_box" >> $id/$fn
-      bash prep_alos2xml $processdir/$fn  # Need to add this script to PATH
+      bash prep_alos2xml $processdir/$fn >> $maindir/AutoISCE.log 2>&1
       cd $processdir
       iscepath=`which $script`
-      python $iscepath --start=download_dem >> $maindir/AutoISCE_all.log 2>&1
+      # echo "python $iscepath --start=download_dem --end=ion_subband >> $maindir/AutoISCE.log 2>&1"
+      python $iscepath --start=download_dem --end=ion_subband >> $maindir/AutoISCE.log 2>&1
+      if [ -z ${mask+x} ]; then
+         echo " #"
+         #echo "'mask' path is not defined in the parameter file. Skip applying mask to subband interferogram "
+         echo "python $iscepath --start=ion_unwrap >> $maindir/AutoISCE.log 2>&1"
+         python $iscepath --start=ion_unwrap >> $maindir/AutoISCE.log 2>&1
+      else
+         if [ -f $mask ]; then
+         wbdion=$processdir/insar/`cd $processdir/insar && ls *-*_?rlks_?alks.wbd`
+         intf1=$processdir/ion/upper/insar/`cd $processdir/ion/upper/insar && ls diff_*-*_?rlks_?alks.int`
+         intf2=$processdir/ion/lower/insar/`cd $processdir/ion/lower/insar && ls diff_*-*_?rlks_?alks.int`
+         touch foo
+         echo "mask=$mask" > $processdir/foo
+         echo "wbdion=$wbdion" >> $processdir/foo
+         echo "intf1=$intf1" >> $processdir/foo
+         echo "intf2=$intf2" >> $processdir/foo
+         bash applyMask $processdir/foo >> $maindir/AutoISCE.log 2>&1
+         python $iscepath --start=ion_unwrap >> $maindir/AutoISCE.log 2>&1
+         rm foo
+         else
+         echo " #"
+         echo " # File does not exists for 'mask'. Check the path. "
+         echo " # Exiting..."
+         exit
+         fi
+      fi
+      
       cd $maindir
    fi
    let k++
@@ -359,6 +392,6 @@ done
 echo ' #'
 echo ' ######################################################################################################'
 echo ' #                                                                                                    #'
-echo " #                                  AutoISCE_all is complete                                          #"
+echo " #                                  AutoISCE is complete                                              #"
 echo ' #                                                                                                    #'
 echo ' ######################################################################################################'

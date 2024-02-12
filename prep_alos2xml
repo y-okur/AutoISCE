@@ -47,6 +47,8 @@ echo '    <property name="geocode bounding box">'${geocode_bounding_box}'</prope
 # These parameters are for ionospheric corrections
 echo '    <property name="do ionospheric phase estimation">'${do_ion}'</property>' >> $processdir/alos2App.xml
 echo '    <property name="apply ionospheric phase correction">'${do_ion}'</property>' >> $processdir/alos2App.xml
+echo '    <property name="number of range looks ion">'${num_rng_lk_ion}'</property>' >> $processdir/alos2App.xml
+echo '    <property name="number of azimuth looks ion">'${num_azi_lk_ion}'</property>' >> $processdir/alos2App.xml
 # ======================================================================================================== 
 echo '  </component>' >> $processdir/alos2App.xml
 echo '</alos2App>' >> $processdir/alos2App.xml

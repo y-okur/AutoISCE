@@ -1,0 +1,61 @@
+#!/bin/bash
+ver=0.1
+
+## Help Display ##
+if [ $# = 0 ]; then
+echo " ###################################################################################################################################"
+echo " # Current version: $ver                                                                                                            #"
+echo " # applyMask.sh: Applies given mask to subband interferogram during ISCE process                                                   #"
+echo " # Original interferograms are saved in ion/upper & lower folder as diff_*-*_*rlks_*alks_ori.int                                   #"
+echo " # Usage ./applyMask.sh foo.par                                                                                                    #"
+echo " # 'foo.par' is a parameter file that should contain paths to mask, upper&lower interferograms                                     #"
+echo " # example foo.par file:                                                                                                           #"
+echo ' # mask="/Users/yagizalp/Documents/test_isce/20160326_20170715_ion_experiment/forMask/mask.float"                                  #'
+echo ' # wbdion="/Users/yagizalp/Documents/test_isce/20160326_20170715_ion_experiment/insar/160326-170715_2rlks_4alks.wbd"               #'
+echo ' # intf1="/Users/yagizalp/Documents/test_isce/20160326_20170715_ion_experiment/ion/upper/insar/diff_160326-170715_2rlks_4alks.int" #'
+echo ' # intf2="/Users/yagizalp/Documents/test_isce/20160326_20170715_ion_experiment/ion/lower/insar/diff_160326-170715_2rlks_4alks.int" #' 
+echo " ###################################################################################################################################"
+exit
+fi
+
+source $1
+
+# Keep original files (unmasked) with _ori tag
+intf1_ori=${intf1%.int}_ori.int
+intf2_ori=${intf2%.int}_ori.int
+ #upper
+ cp $intf1 $intf1_ori
+ cp $intf1.xml $intf1_ori.xml
+ cp $intf1.vrt $intf1_ori.vrt
+ #lower
+ cp $intf2 $intf2_ori
+ cp $intf2.xml $intf2_ori.xml
+ cp $intf2.vrt $intf2_ori.vrt
+
+# Remove original interferograms so that imageMath.py can create the files with the same name.
+rm $intf1 $intf2
+
+# Apply mask(s) to intf1 and intf2
+
+  # Two-mask (wbd and manual)
+  # imageMath.py -e='a*(b==0)' --a=$intf1_ori --b=$wbdion -o $intf1 -t cfloat &>/dev/null
+  # temp1=${intf1%.int}_temp.int
+  # mv $intf1 $temp1
+  # cp $intf1.xml $temp1.xml
+  # cp $intf1.vrt $temp1.vrt
+  # imageMath.py -e='a*(b!=0)' --a=$temp1 --b=$mask -o $intf1 -t cfloat &>/dev/null
+
+  # imageMath.py -e='a*(b==0)' --a=$intf2_ori --b=$wbdion -o $intf2 -t cfloat &>/dev/null
+  # temp2=${intf2%.int}_temp.int
+  # mv $intf2 $temp2
+  # cp $intf2.xml $temp2.xml
+  # cp $intf2.vrt $temp2.vrt
+  # imageMath.py -e='a*(b!=0)' --a=$temp2 --b=$mask -o $intf2 -t cfloat &>/dev/null
+
+  # One-mask (manual only)
+  imageMath.py -e='a*(b!=0)' --a=$intf1_ori --b=$mask -o $intf1 -t cfloat &>/dev/null
+  imageMath.py -e='a*(b!=0)' --a=$intf2_ori --b=$mask -o $intf2 -t cfloat &>/dev/null
+
+  # One-mask (wbd only)
+  # imageMath.py -e='a*(b==0)' --a=$intf1_ori --b=$wbdion -o $intf1 -t cfloat &>/dev/null
+  # imageMath.py -e='a*(b==0)' --a=$intf2_ori --b=$wbdion -o $intf2 -t cfloat &>/dev/null 

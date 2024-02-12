@@ -1,13 +1,14 @@
 # AutoISCE
 Stack processor for ISCE2
-## Current version: 0.5
+## Current version: 0.6
 ### Changelogs
+- version 0.6 (2024.02.12): Added a mask feature during ionosphere correction. An external mask file can be used.
 - version 0.5 (2023.02.02): Added support for giving external dem. Paths must be defined in parfile
 - version 0.4 (2023.02.01): Stable version. Added instructions for the parfile. Added outputs to console about the status of the process
                            Process workflow has changed. Now, baselines will be calculated first to get both pbaseall.list and boundingbox
                            If boundingbox is given in parfile, those values will be used instead. download dem script is also changed. Now
                            it can download the dem file automaticaly with the boundingbox. Additionally, console outputs from ISCE will be
-                           saved to AutoISCE_all.log file, they won't apper on the console.
+                           saved to AutoISCE.log file, they won't apper on the console.
 - version 0.3 (2023.01.28): Added getboundingbox.py script. It can find the common geoboundingbox for all process pairs. This information
                           is later used in geocoding so that all the geocoded outputs will have the same coordinates / dimensions.
                           This informaton can also be used for automatic dem download.
